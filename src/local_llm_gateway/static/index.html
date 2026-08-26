@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ModelRelay</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>ModelRelay</h1>
+    <nav>
+      <button data-tab="keys">Keys</button>
+      <button data-tab="models">Models</button>
+      <button data-tab="status">Status</button>
+    </nav>
+  </header>
+  <main>
+    <section id="tab-keys" class="tab">
+      <h2>API Keys</h2>
+      <form id="key-form">
+        <input id="key-name" placeholder="名称，如 claude-code" autocomplete="off">
+        <button type="submit">创建 Key</button>
+      </form>
+      <div id="key-created" class="callout hidden"></div>
+      <table>
+        <thead><tr><th>名称</th><th>前缀</th><th>权限</th><th>状态</th><th>创建时间</th><th></th></tr></thead>
+        <tbody id="key-list"></tbody>
+      </table>
+    </section>
+    <section id="tab-models" class="tab hidden">
+      <h2>Models</h2>
+      <table>
+        <thead><tr><th>ID</th><th>显示名</th><th>Provider</th></tr></thead>
+        <tbody id="model-list"></tbody>
+      </table>
+    </section>
+    <section id="tab-status" class="tab hidden">
+      <h2>Status</h2>
+      <pre id="status-box"></pre>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

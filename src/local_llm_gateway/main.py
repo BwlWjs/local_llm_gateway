@@ -1,9 +1,11 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from .admin.routes import router as admin_router
 from .config import settings
@@ -111,3 +113,7 @@ async def count_tokens(request: TokenCountRequest) -> TokenCountResponse:
 @app.on_event("shutdown")
 async def shutdown() -> None:
     await runtime.client.aclose()
+
+
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

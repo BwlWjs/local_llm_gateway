@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ..config import settings
 from ..models import ApiKeyRecord, ApiKeyStatus
 from ..security import DEFAULT_SCOPES, admin_auth, generate_key, hash_key, key_prefix
 from .schemas import KeyCreateRequest, KeyCreateResponse, KeyListItem
@@ -63,3 +64,19 @@ def revoke_key(key_id: str, request: Request) -> dict[str, str]:
         raise HTTPException(status_code=404, detail={"code": "key_not_found", "detail": f"key not found: {key_id}"})
     _refresh(request)
     return {"id": key_id, "status": ApiKeyStatus.revoked.value}
+
+
+@router.get("/status", dependencies=[Depends(admin_auth)])
+def get_status(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    return {
+        "name": settings.gateway_name,
+        "version": settings.gateway_version,
+        "models_count": len(runtime.registry.list_models()),
+        "keys_count": len(request.app.state.key_store.list()),
+    }
+
+
+@router.get("/models", dependencies=[Depends(admin_auth)])
+def admin_list_models(request: Request) -> list[dict[str, object]]:
+    return [m.model_dump() for m in request.app.state.runtime.registry.list_models()]

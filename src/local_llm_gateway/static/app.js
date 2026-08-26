@@ -1,0 +1,84 @@
+const $ = (sel) => document.querySelector(sel);
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function api(path, opts = {}) {
+  return fetch(path, {
+    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    ...opts,
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const d = data && data.detail;
+      throw new Error(typeof d === "string" ? d : JSON.stringify(d || data));
+    }
+    return data;
+  });
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
+  const el = $(`#tab-${name}`);
+  if (el) el.classList.remove("hidden");
+  document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+}
+
+async function loadKeys() {
+  const keys = await api("/api/v1/keys");
+  $("#key-list").innerHTML = keys
+    .map((k) => `<tr>
+      <td>${esc(k.name)}</td>
+      <td><code>${esc(k.prefix)}</code></td>
+      <td>${esc((k.scopes || []).join(", "))}</td>
+      <td>${esc(k.status)}</td>
+      <td>${esc(k.created_at)}</td>
+      <td><button data-revoke="${esc(k.id)}">吊销</button></td>
+    </tr>`)
+    .join("");
+  document.querySelectorAll("[data-revoke]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await api(`/api/v1/keys/${btn.dataset.revoke}`, { method: "DELETE" });
+        loadKeys();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+async function loadModels() {
+  const models = await api("/api/v1/models");
+  $("#model-list").innerHTML = models
+    .map((m) => `<tr><td><code>${esc(m.id)}</code></td><td>${esc(m.display_name)}</td><td>${esc(m.provider)}</td></tr>`)
+    .join("");
+}
+
+async function loadStatus() {
+  const s = await api("/api/v1/status");
+  $("#status-box").textContent = JSON.stringify(s, null, 2);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+  $("#key-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("#key-name").value.trim() || "default";
+    try {
+      const resp = await api("/api/v1/keys", { method: "POST", body: JSON.stringify({ name }) });
+      const box = $("#key-created");
+      box.classList.remove("hidden");
+      box.textContent = `Key 已创建（只显示这一次）：${resp.key}`;
+      $("#key-name").value = "";
+      loadKeys();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  switchTab("keys");
+  loadKeys().catch((e) => alert(e.message));
+  loadModels().catch((e) => alert(e.message));
+  loadStatus().catch((e) => alert(e.message));
+});
