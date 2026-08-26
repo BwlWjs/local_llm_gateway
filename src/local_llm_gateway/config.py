@@ -61,10 +61,10 @@ class Settings:
                 "max_context_tokens": 8192,
             },
             "vllm": {
-                "supports_messages": False,
-                "supports_stream": False,
+                "supports_messages": True,
+                "supports_stream": True,
                 "supports_count_tokens": False,
-                "supports_tools": False,
+                "supports_tools": True,
                 "supports_system": True,
                 "max_context_tokens": 8192,
             },

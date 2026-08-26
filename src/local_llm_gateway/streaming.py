@@ -122,3 +122,46 @@ async def ollama_line_stream_to_sse(
     yield canonical_content_stop(0)
     yield canonical_message_delta("end_turn", usage)
     yield canonical_message_stop()
+
+
+async def openai_stream_to_sse(
+    lines: AsyncIterator[str],
+    target: ProviderTarget,
+    message_id: str,
+) -> AsyncIterator[bytes]:
+    yield canonical_message_start(message_id, target.model)
+    yield canonical_content_start(0)
+    output_tokens = 0
+    usage = UsageInfo()
+    stop_reason: str | None = None
+    async for line in lines:
+        if not line.strip() or not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        choices = payload.get("choices") or []
+        if not choices or not isinstance(choices[0], dict):
+            continue
+        choice = choices[0]
+        delta = choice.get("delta") or {}
+        content = delta.get("content")
+        if isinstance(content, str) and content:
+            output_tokens += max(1, len(content) // 4)
+            yield canonical_content_delta(content, 0)
+        if choice.get("finish_reason"):
+            stop_reason = str(choice["finish_reason"])
+        if payload.get("usage"):
+            u = payload["usage"]
+            usage = UsageInfo(
+                input_tokens=int(u.get("prompt_tokens") or 0),
+                output_tokens=int(u.get("completion_tokens") or output_tokens),
+            )
+
+    yield canonical_content_stop(0)
+    yield canonical_message_delta(stop_reason or "end_turn", usage)
+    yield canonical_message_stop()
