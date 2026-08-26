@@ -85,3 +85,32 @@ button[data-revoke] {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
+.info-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.info-row { display: flex; align-items: center; gap: 12px; }
+.info-label { width: 190px; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.info-value { flex: 1; padding: 6px 10px; overflow-x: auto; white-space: nowrap; }
+.copy-btn {
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.copy-btn:hover { color: var(--fg); border-color: var(--accent); }
+.markdown-wrap { position: relative; }
+.markdown-wrap .copy-btn { position: absolute; top: 10px; right: 10px; z-index: 1; }
+#conn-markdown {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 40px 16px 16px;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 160px;
+}

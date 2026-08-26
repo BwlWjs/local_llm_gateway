@@ -13,6 +13,7 @@
       <button data-tab="keys">Keys</button>
       <button data-tab="models">Models</button>
       <button data-tab="status">Status</button>
+      <button data-tab="connect">接入</button>
     </nav>
   </header>
   <main>
@@ -38,6 +39,15 @@
     <section id="tab-status" class="tab hidden">
       <h2>Status</h2>
       <pre id="status-box"></pre>
+    </section>
+    <section id="tab-connect" class="tab hidden">
+      <h2>接入信息</h2>
+      <div id="connect-info" class="info-list"></div>
+      <h2>Markdown</h2>
+      <div class="markdown-wrap">
+        <button class="copy-btn" data-copy="conn-markdown">复制 Markdown</button>
+        <pre id="conn-markdown"></pre>
+      </div>
     </section>
   </main>
   <script src="/app.js"></script>
