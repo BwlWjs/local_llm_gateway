@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.venv
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+release/
+*.pyc
+.claude/settings.local.json
+*.db
+*.egg-info/
+downloads/
