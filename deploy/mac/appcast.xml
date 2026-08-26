@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>ModelRelay</title>
+    <description>ModelRelay updates</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.1.0</title>
+      <sparkle:releaseNotesLink>https://github.com/BwlWjs/local_llm_gateway/releases</sparkle:releaseNotesLink>
+      <pubDate>REPLACE_DATE</pubDate>
+      <enclosure
+        url="https://github.com/BwlWjs/local_llm_gateway/releases/download/v0.1.0/ModelRelay-0.1.0.dmg"
+        sparkle:version="0.1.0"
+        length="REPLACE_LENGTH"
+        type="application/octet-stream"
+        sparkle:edSignature="REPLACE_SIGNATURE"/>
+    </item>
+  </channel>
+</rss>
