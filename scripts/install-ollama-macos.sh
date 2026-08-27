@@ -25,15 +25,16 @@ curl -fL --retry 3 "${CURL_ARGS[@]}" "https://ollama.com/download/Ollama-darwin.
 echo "==> 解压 ..."
 unzip -q "${WORK}/ollama.zip" -d "${WORK}/app"
 
-# 在 .app 包里定位 ollama CLI 二进制（优先 Contents/Resources）
-BIN="$(find "${WORK}/app" -type f -name ollama -path "*Resources*" | head -1)"
-[ -z "${BIN}" ] && BIN="$(find "${WORK}/app" -type f -name ollama | head -1)"
-[ -z "${BIN}" ] && { echo "错误：未找到 ollama 二进制" >&2; exit 1; }
+# 整体拷贝 Resources 目录（含 ollama 主程序、llama-server 运行器、dylib 库）。
+# 注意：只拷 ollama 主程序会缺 llama-server，推理时报 500。
+RES_DIR="$(find "${WORK}/app" -type d -name Resources | head -1)"
+[ -z "${RES_DIR}" ] && { echo "错误：未找到 Resources 目录" >&2; exit 1; }
 
-mkdir -p "$(dirname "${INSTALL_BIN}")"
-cp "${BIN}" "${INSTALL_BIN}"
-chmod +x "${INSTALL_BIN}"
-echo "==> 已安装到 ${INSTALL_BIN}"
+INSTALL_DIR="$(dirname "${INSTALL_BIN}")"
+mkdir -p "${INSTALL_DIR}"
+cp -R "${RES_DIR}/." "${INSTALL_DIR}/"
+chmod +x "${INSTALL_BIN}" "${INSTALL_DIR}/llama-server" 2>/dev/null || true
+echo "==> 已安装到 ${INSTALL_DIR}/（ollama + llama-server + 库）"
 
 echo "==> 启动 ollama serve（OLLAMA_HOST=${OLLAMA_HOST_ENV}）..."
 OLLAMA_HOST="${OLLAMA_HOST_ENV}" nohup "${INSTALL_BIN}" serve > /tmp/ollama-serve.log 2>&1 &
