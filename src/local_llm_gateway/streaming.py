@@ -1,9 +1,8 @@
-from collections.abc import AsyncIterator
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from .models import CanonicalStreamEvent, ProviderTarget, StreamEventType, UsageInfo
-
 
 _ANTHROPIC_STOP_REASON_MAP: dict[str, str] = {
     "stop": "end_turn",
@@ -27,7 +26,7 @@ def to_anthropic_stop_reason(reason: str | None) -> str | None:
 
 
 def encode_sse(event_type: str, data: dict[str, Any]) -> bytes:
-    return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n".encode("utf-8")
+    return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n".encode()
 
 
 async def passthrough_stream(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
@@ -35,7 +34,9 @@ async def passthrough_stream(chunks: AsyncIterator[bytes]) -> AsyncIterator[byte
         yield chunk
 
 
-def canonical_message_start(message_id: str, model: str) -> bytes:
+def canonical_message_start(
+    message_id: str, model: str, input_tokens: int = 0
+) -> bytes:
     event = CanonicalStreamEvent(
         event_type=StreamEventType.message_start,
         delta={},
@@ -51,41 +52,99 @@ def canonical_message_start(message_id: str, model: str) -> bytes:
             "content": [],
             "stop_reason": None,
             "stop_sequence": None,
-            "usage": {"input_tokens": 0, "output_tokens": 0},
+            "usage": {"input_tokens": input_tokens, "output_tokens": 0},
         },
     }
     return encode_sse(event.event_type.value, payload)
 
 
 def canonical_content_start(index: int = 0) -> bytes:
-    event = CanonicalStreamEvent(event_type=StreamEventType.content_block_start, index=index)
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.content_block_start, index=index
+    )
     return encode_sse(
         event.event_type.value,
-        {"type": event.event_type.value, "index": event.index, "content_block": {"type": "text", "text": ""}},
+        {
+            "type": event.event_type.value,
+            "index": event.index,
+            "content_block": {"type": "text", "text": ""},
+        },
+    )
+
+
+def canonical_tool_block_start(index: int, tool_id: str, name: str) -> bytes:
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.content_block_start, index=index
+    )
+    return encode_sse(
+        event.event_type.value,
+        {
+            "type": event.event_type.value,
+            "index": event.index,
+            "content_block": {
+                "type": "tool_use",
+                "id": tool_id,
+                "name": name,
+                "input": {},
+            },
+        },
     )
 
 
 def canonical_content_delta(text: str, index: int = 0) -> bytes:
-    event = CanonicalStreamEvent(event_type=StreamEventType.content_block_delta, index=index, delta={"text": text})
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.content_block_delta,
+        index=index,
+        delta={"text": text},
+    )
     return encode_sse(
         event.event_type.value,
-        {"type": event.event_type.value, "index": event.index, "delta": {"type": "text_delta", "text": text}},
+        {
+            "type": event.event_type.value,
+            "index": event.index,
+            "delta": {"type": "text_delta", "text": text},
+        },
+    )
+
+
+def canonical_tool_input_delta(partial_json: str, index: int) -> bytes:
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.content_block_delta,
+        index=index,
+        delta={"partial_json": partial_json},
+    )
+    return encode_sse(
+        event.event_type.value,
+        {
+            "type": event.event_type.value,
+            "index": event.index,
+            "delta": {"type": "input_json_delta", "partial_json": partial_json},
+        },
     )
 
 
 def canonical_content_stop(index: int = 0) -> bytes:
-    event = CanonicalStreamEvent(event_type=StreamEventType.content_block_stop, index=index)
-    return encode_sse(event.event_type.value, {"type": event.event_type.value, "index": event.index})
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.content_block_stop, index=index
+    )
+    return encode_sse(
+        event.event_type.value, {"type": event.event_type.value, "index": event.index}
+    )
 
 
 def canonical_message_delta(stop_reason: str, usage: UsageInfo) -> bytes:
-    event = CanonicalStreamEvent(event_type=StreamEventType.message_delta, stop_reason=stop_reason, usage=usage)
+    event = CanonicalStreamEvent(
+        event_type=StreamEventType.message_delta, stop_reason=stop_reason, usage=usage
+    )
     return encode_sse(
         event.event_type.value,
         {
             "type": event.event_type.value,
             "delta": {"stop_reason": event.stop_reason, "stop_sequence": None},
-            "usage": {"output_tokens": event.usage.output_tokens if event.usage else 0},
+            "usage": {
+                "input_tokens": event.usage.input_tokens if event.usage else 0,
+                "output_tokens": event.usage.output_tokens if event.usage else 0,
+            },
         },
     )
 
@@ -95,7 +154,9 @@ def canonical_message_stop() -> bytes:
     return encode_sse(event.event_type.value, {"type": event.event_type.value})
 
 
-def canonical_error(code: str, detail: str, extra: dict[str, Any] | None = None) -> bytes:
+def canonical_error(
+    code: str, detail: str, extra: dict[str, Any] | None = None
+) -> bytes:
     event = CanonicalStreamEvent(event_type=StreamEventType.error)
     payload = {
         "type": event.event_type.value,
@@ -112,11 +173,15 @@ async def ollama_line_stream_to_sse(
     lines: AsyncIterator[str],
     target: ProviderTarget,
     message_id: str,
+    input_tokens_estimate: int = 0,
 ) -> AsyncIterator[bytes]:
-    yield canonical_message_start(message_id, target.model)
+    yield canonical_message_start(message_id, target.model, input_tokens_estimate)
     yield canonical_content_start(0)
     output_tokens = 0
-    usage = UsageInfo()
+    usage = UsageInfo(input_tokens=input_tokens_estimate)
+    saw_tool_calls = False
+    text_block_open = True
+    block_index = 0
     async for line in lines:
         if not line.strip():
             continue
@@ -129,18 +194,51 @@ async def ollama_line_stream_to_sse(
         if isinstance(content, str) and content:
             output_tokens += max(1, len(content) // 4)
             yield canonical_content_delta(content, 0)
+        tool_calls = message.get("tool_calls")
+        if tool_calls:
+            if text_block_open:
+                yield canonical_content_stop(0)
+                text_block_open = False
+            for call in tool_calls:
+                function = call.get("function") or {}
+                block_index += 1
+                tool_id = call.get("id") or f"toolu_{message_id}_{block_index}"
+                arguments = function.get("arguments")
+                if not isinstance(arguments, dict):
+                    arguments = {}
+                yield canonical_tool_block_start(
+                    block_index, tool_id, str(function.get("name"))
+                )
+                yield canonical_tool_input_delta(
+                    json.dumps(arguments, ensure_ascii=False), block_index
+                )
+                yield canonical_content_stop(block_index)
+                output_tokens += max(
+                    1, len(json.dumps(arguments, ensure_ascii=False)) // 4
+                )
+            saw_tool_calls = True
         if payload.get("done"):
             usage = UsageInfo(
-                input_tokens=int(payload.get("prompt_eval_count") or 0),
+                input_tokens=int(
+                    payload.get("prompt_eval_count") or input_tokens_estimate
+                ),
                 output_tokens=int(payload.get("eval_count") or output_tokens),
             )
-            reason = to_anthropic_stop_reason(str(payload.get("done_reason") or "end_turn")) or "end_turn"
-            yield canonical_content_stop(0)
+            reason = (
+                to_anthropic_stop_reason(str(payload.get("done_reason") or "end_turn"))
+                or "end_turn"
+            )
+            if saw_tool_calls:
+                reason = "tool_use"
+            if text_block_open:
+                yield canonical_content_stop(0)
+                text_block_open = False
             yield canonical_message_delta(reason, usage)
             yield canonical_message_stop()
             return
 
-    yield canonical_content_stop(0)
+    if text_block_open:
+        yield canonical_content_stop(0)
     yield canonical_message_delta("end_turn", usage)
     yield canonical_message_stop()
 
@@ -149,12 +247,19 @@ async def openai_stream_to_sse(
     lines: AsyncIterator[str],
     target: ProviderTarget,
     message_id: str,
+    input_tokens_estimate: int = 0,
 ) -> AsyncIterator[bytes]:
-    yield canonical_message_start(message_id, target.model)
+    yield canonical_message_start(message_id, target.model, input_tokens_estimate)
     yield canonical_content_start(0)
     output_tokens = 0
-    usage = UsageInfo()
+    usage = UsageInfo(input_tokens=input_tokens_estimate)
     stop_reason: str | None = None
+    saw_tool_calls = False
+    text_block_open = True
+    # maps the provider's tool_call index -> emitted anthropic content block index
+    tool_block_indexes: dict[int, int] = {}
+    next_block_index = 0
+
     async for line in lines:
         if not line.strip() or not line.startswith("data:"):
             continue
@@ -174,15 +279,45 @@ async def openai_stream_to_sse(
         if isinstance(content, str) and content:
             output_tokens += max(1, len(content) // 4)
             yield canonical_content_delta(content, 0)
+        for tool_call in delta.get("tool_calls") or []:
+            if not isinstance(tool_call, dict):
+                continue
+            function = tool_call.get("function") or {}
+            provider_index = int(tool_call.get("index") or 0)
+            if provider_index not in tool_block_indexes:
+                if text_block_open:
+                    yield canonical_content_stop(0)
+                    text_block_open = False
+                next_block_index += 1
+                tool_block_indexes[provider_index] = next_block_index
+                tool_id = (
+                    tool_call.get("id") or f"toolu_{message_id}_{next_block_index}"
+                )
+                yield canonical_tool_block_start(
+                    next_block_index, tool_id, str(function.get("name") or "")
+                )
+            block_index = tool_block_indexes[provider_index]
+            arguments = function.get("arguments")
+            if isinstance(arguments, str) and arguments:
+                yield canonical_tool_input_delta(arguments, block_index)
+                output_tokens += max(1, len(arguments) // 4)
+            saw_tool_calls = True
         if choice.get("finish_reason"):
             stop_reason = str(choice["finish_reason"])
         if payload.get("usage"):
             u = payload["usage"]
             usage = UsageInfo(
-                input_tokens=int(u.get("prompt_tokens") or 0),
+                input_tokens=int(u.get("prompt_tokens") or input_tokens_estimate),
                 output_tokens=int(u.get("completion_tokens") or output_tokens),
             )
 
-    yield canonical_content_stop(0)
-    yield canonical_message_delta(to_anthropic_stop_reason(stop_reason) or "end_turn", usage)
+    for block_index in tool_block_indexes.values():
+        yield canonical_content_stop(block_index)
+    if text_block_open:
+        yield canonical_content_stop(0)
+    if saw_tool_calls:
+        stop_reason = "tool_calls"
+    yield canonical_message_delta(
+        to_anthropic_stop_reason(stop_reason) or "end_turn", usage
+    )
     yield canonical_message_stop()

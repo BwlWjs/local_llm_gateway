@@ -5,7 +5,12 @@ from collections.abc import AsyncIterator, Mapping
 
 import httpx
 
-from ..models import CanonicalRequest, CanonicalResponse, ProviderTarget, TokenCountRequest
+from ..models import (
+    CanonicalRequest,
+    CanonicalResponse,
+    ProviderTarget,
+    TokenCountRequest,
+)
 
 
 class ProviderError(Exception):

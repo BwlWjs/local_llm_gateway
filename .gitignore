@@ -12,3 +12,4 @@ release/
 *.db
 *.egg-info/
 downloads/
+.workbuddy/

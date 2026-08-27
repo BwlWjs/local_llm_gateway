@@ -6,7 +6,9 @@ from ..models import CanonicalRequest, MessageRequest, ProtocolName, SamplingPar
 class AnthropicFacade:
     protocol = ProtocolName.anthropic
 
-    def to_canonical(self, request: MessageRequest, request_id: str) -> CanonicalRequest:
+    def to_canonical(
+        self, request: MessageRequest, request_id: str
+    ) -> CanonicalRequest:
         return CanonicalRequest(
             request_id=request_id,
             protocol=self.protocol,

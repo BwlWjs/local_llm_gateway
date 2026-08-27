@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 from ..models import ApiKeyRecord, ApiKeyStatus
 
@@ -80,7 +80,9 @@ class KeyStore:
 
     def get_by_hash(self, key_hash: str) -> ApiKeyRecord | None:
         with self._conn() as conn:
-            row = conn.execute("SELECT * FROM api_keys WHERE key_hash = ?", (key_hash,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM api_keys WHERE key_hash = ?", (key_hash,)
+            ).fetchone()
         return _row_to_record(row) if row else None
 
     def list(self) -> list[ApiKeyRecord]:
@@ -90,5 +92,8 @@ class KeyStore:
 
     def revoke(self, key_id: str) -> bool:
         with self._conn() as conn:
-            cur = conn.execute("UPDATE api_keys SET status = ? WHERE id = ?", (ApiKeyStatus.revoked.value, key_id))
+            cur = conn.execute(
+                "UPDATE api_keys SET status = ? WHERE id = ?",
+                (ApiKeyStatus.revoked.value, key_id),
+            )
         return cur.rowcount > 0

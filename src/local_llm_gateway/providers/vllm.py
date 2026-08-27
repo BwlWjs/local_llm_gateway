@@ -5,11 +5,24 @@ from typing import Any
 
 import httpx
 
-from .base import ProviderAdapter
 from ..core.errors import GatewayError
-from ..models import CanonicalRequest, CanonicalResponse, ProviderTarget, TokenCountRequest, UsageInfo
-from ..protocols import content_to_text, estimate_request_tokens
+from ..models import (
+    CanonicalRequest,
+    CanonicalResponse,
+    ProviderTarget,
+    TokenCountRequest,
+    UsageInfo,
+)
+from ..protocols import (
+    anthropic_tool_choice_to_provider,
+    anthropic_tools_to_provider,
+    canonical_messages_to_provider,
+    content_to_text,
+    estimate_request_tokens,
+    provider_tool_calls_to_content,
+)
 from ..streaming import openai_stream_to_sse
+from .base import ProviderAdapter
 
 
 class VllmAdapter(ProviderAdapter):
@@ -30,16 +43,29 @@ class VllmAdapter(ProviderAdapter):
         payload = self._build_payload(target, request, stream=True)
         url = f"{target.base_url.rstrip('/')}/v1/chat/completions"
         try:
-            async with client.stream("POST", url, json=payload, headers=extra_headers) as response:
+            async with client.stream(
+                "POST", url, json=payload, headers=extra_headers
+            ) as response:
                 response.raise_for_status()
-                async for chunk in openai_stream_to_sse(response.aiter_lines(), target, self._message_id()):
+                async for chunk in openai_stream_to_sse(
+                    response.aiter_lines(),
+                    target,
+                    self._message_id(),
+                    input_tokens_estimate=estimate_request_tokens(request),
+                ):
                     yield chunk
         except httpx.TimeoutException as exc:
             raise GatewayError(504, "upstream_timeout", f"vllm timeout: {exc}") from exc
         except httpx.HTTPStatusError as exc:
-            raise GatewayError(502, "upstream_protocol_error", f"vllm status error: {exc.response.status_code}") from exc
+            raise GatewayError(
+                502,
+                "upstream_protocol_error",
+                f"vllm status error: {exc.response.status_code}",
+            ) from exc
         except httpx.HTTPError as exc:
-            raise GatewayError(502, "upstream_network_error", f"vllm network error: {exc}") from exc
+            raise GatewayError(
+                502, "upstream_network_error", f"vllm network error: {exc}"
+            ) from exc
 
     async def count_tokens(
         self,
@@ -66,37 +92,57 @@ class VllmAdapter(ProviderAdapter):
         except httpx.TimeoutException as exc:
             raise GatewayError(504, "upstream_timeout", f"vllm timeout: {exc}") from exc
         except httpx.HTTPStatusError as exc:
-            raise GatewayError(502, "upstream_protocol_error", f"vllm status error: {exc.response.status_code}") from exc
+            raise GatewayError(
+                502,
+                "upstream_protocol_error",
+                f"vllm status error: {exc.response.status_code}",
+            ) from exc
         except httpx.HTTPError as exc:
-            raise GatewayError(502, "upstream_network_error", f"vllm network error: {exc}") from exc
+            raise GatewayError(
+                502, "upstream_network_error", f"vllm network error: {exc}"
+            ) from exc
 
         choices = data.get("choices") or []
         content = ""
         stop_reason = None
+        tool_calls: list[dict[str, Any]] = []
         if choices and isinstance(choices[0], dict):
             message = choices[0].get("message") or {}
             content = content_to_text(message.get("content"))
             stop_reason = choices[0].get("finish_reason")
+            tool_calls = message.get("tool_calls") or []
+        tool_blocks = provider_tool_calls_to_content(tool_calls, style="openai")
+        blocks: list[dict[str, Any]] = []
+        if content:
+            blocks.append({"type": "text", "text": content})
+        blocks.extend(tool_blocks)
+        if tool_blocks:
+            stop_reason = "tool_calls"
         usage = data.get("usage") or {}
         return CanonicalResponse(
             id=self._message_id(),
             model=target.model,
-            content=[{"type": "text", "text": content}] if content else [],
+            content=blocks,
             stop_reason=str(stop_reason or "stop"),
             usage=UsageInfo(
-                input_tokens=int(usage.get("prompt_tokens") or estimate_request_tokens(request)),
+                input_tokens=int(
+                    usage.get("prompt_tokens") or estimate_request_tokens(request)
+                ),
                 output_tokens=int(usage.get("completion_tokens") or 0),
             ),
         )
 
-    def _build_payload(self, target: ProviderTarget, request: CanonicalRequest, *, stream: bool) -> dict[str, Any]:
+    def _build_payload(
+        self, target: ProviderTarget, request: CanonicalRequest, *, stream: bool
+    ) -> dict[str, Any]:
         messages: list[dict[str, Any]] = []
         if request.system:
-            messages.append({"role": "system", "content": content_to_text(request.system)})
-        for item in request.messages:
-            if not isinstance(item, dict):
-                continue
-            messages.append({"role": str(item.get("role", "user")), "content": content_to_text(item.get("content"))})
+            messages.append(
+                {"role": "system", "content": content_to_text(request.system)}
+            )
+        messages.extend(
+            canonical_messages_to_provider(request.messages, style="openai")
+        )
 
         payload: dict[str, Any] = {
             "model": target.model,
@@ -113,6 +159,13 @@ class VllmAdapter(ProviderAdapter):
             payload["top_k"] = sampling.top_k
         if sampling.stop_sequences:
             payload["stop"] = sampling.stop_sequences
+        if request.tools:
+            payload["tools"] = anthropic_tools_to_provider(request.tools)
+            payload["tool_choice"] = (
+                anthropic_tool_choice_to_provider(request.tool_choice) or "auto"
+            )
+        if stream and request.stream_options:
+            payload["stream_options"] = request.stream_options
         return payload
 
     @staticmethod

@@ -35,7 +35,9 @@ class GatewayService:
 
     def _client(self) -> httpx.AsyncClient:
         if self.runtime.client is None:
-            raise GatewayError(500, "client_not_ready", "runtime client is not initialized")
+            raise GatewayError(
+                500, "client_not_ready", "runtime client is not initialized"
+            )
         return self.runtime.client
 
     async def count_tokens(self, request: TokenCountRequest) -> TokenCountResponse:
@@ -52,16 +54,30 @@ class GatewayService:
     async def create_message(self, request: CanonicalRequest) -> CanonicalResponse:
         target = self.resolve(request.model)
         adapter = get_provider_adapter(target.provider)
-        if not target.supports_messages or not getattr(adapter, "supports_messages", True):
-            raise GatewayError(501, "provider_unsupported", f"provider {target.provider} does not support messages")
+        if not target.supports_messages or not getattr(
+            adapter, "supports_messages", True
+        ):
+            raise GatewayError(
+                501,
+                "provider_unsupported",
+                f"provider {target.provider} does not support messages",
+            )
         try:
             return await adapter.create_message(self._client(), target, request)
         except NotImplementedError:
-            raise GatewayError(501, "provider_unimplemented", f"provider {target.provider} does not implement create_message") from None
+            raise GatewayError(
+                501,
+                "provider_unimplemented",
+                f"provider {target.provider} does not implement create_message",
+            ) from None
 
     def stream_message(self, request: CanonicalRequest) -> AsyncIterator[bytes]:
         target = self.resolve(request.model)
         adapter = get_provider_adapter(target.provider)
         if not target.supports_stream or not getattr(adapter, "supports_stream", True):
-            raise GatewayError(501, "provider_unsupported", f"provider {target.provider} does not support streaming")
+            raise GatewayError(
+                501,
+                "provider_unsupported",
+                f"provider {target.provider} does not support streaming",
+            )
         return adapter.stream_messages(self._client(), target, request)

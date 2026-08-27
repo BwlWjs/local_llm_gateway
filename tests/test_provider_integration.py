@@ -68,6 +68,10 @@ def test_ollama_stream_mock_orders_sse():
 
     out = asyncio.run(go())
     # events arrive in order
-    assert out.index("message_start") < out.index("content_block_delta") < out.index("message_stop")
+    assert (
+        out.index("message_start")
+        < out.index("content_block_delta")
+        < out.index("message_stop")
+    )
     assert "Hello" in out
     assert "world" in out

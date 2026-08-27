@@ -14,6 +14,9 @@ class ModelRegistry:
     raw: str = settings.model_map_raw
     defaults: dict[str, Any] = field(default_factory=dict)
     provider_caps: dict[str, Any] = field(default_factory=dict)
+    _mapping_cache: dict[str, Any] | None = field(
+        default=None, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         if not self.defaults:
@@ -27,15 +30,31 @@ class ModelRegistry:
         item = mapping.get(logical_model, {})
         if not isinstance(item, dict):
             item = {}
-        default_item = self.defaults.get(logical_model, {}) if isinstance(self.defaults, dict) else {}
+        default_item = (
+            self.defaults.get(logical_model, {})
+            if isinstance(self.defaults, dict)
+            else {}
+        )
         if not isinstance(default_item, dict):
             default_item = {}
         if not item and not default_item:
-            raise GatewayError(404, "route_not_found", f"model route not found: {logical_model}")
-        provider = str(item.get("provider") or default_item.get("provider") or settings.provider_default)
+            raise GatewayError(
+                404, "route_not_found", f"model route not found: {logical_model}"
+            )
+        provider = str(
+            item.get("provider")
+            or default_item.get("provider")
+            or settings.provider_default
+        )
         model = str(item.get("model") or default_item.get("model") or logical_model)
-        base_url = settings.ollama_base_url if provider == "ollama" else settings.vllm_base_url
-        caps = self.provider_caps.get(provider, {}) if isinstance(self.provider_caps, dict) else {}
+        base_url = (
+            settings.ollama_base_url if provider == "ollama" else settings.vllm_base_url
+        )
+        caps = (
+            self.provider_caps.get(provider, {})
+            if isinstance(self.provider_caps, dict)
+            else {}
+        )
         return ProviderTarget(
             provider=provider,
             model=model,
@@ -53,11 +72,16 @@ class ModelRegistry:
         mapping = self._mapping()
 
         items: list[ModelInfo] = []
-        visible_models = {**self.defaults, **mapping} if isinstance(self.defaults, dict) else mapping
+        visible_models = (
+            {**self.defaults, **mapping} if isinstance(self.defaults, dict) else mapping
+        )
         for logical_name, raw_item in visible_models.items():
             if not isinstance(raw_item, dict):
                 continue
-            display_name = raw_item.get("display_name") or str(logical_name).replace("_", " ").replace("-", " ").title()
+            display_name = (
+                raw_item.get("display_name")
+                or str(logical_name).replace("_", " ").replace("-", " ").title()
+            )
             provider = str(raw_item.get("provider", settings.provider_default))
             items.append(
                 ModelInfo(
@@ -80,11 +104,10 @@ class ModelRegistry:
         return items
 
     def _mapping(self) -> dict[str, Any]:
-        try:
-            value = json.loads(self.raw)
-        except json.JSONDecodeError:
-            return {}
-        return value if isinstance(value, dict) else {}
-
-
-registry = ModelRegistry()
+        if self._mapping_cache is None:
+            try:
+                value = json.loads(self.raw)
+            except json.JSONDecodeError:
+                value = {}
+            self._mapping_cache = value if isinstance(value, dict) else {}
+        return self._mapping_cache

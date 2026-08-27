@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 import json
 import os
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -32,7 +32,9 @@ def _env_json(name: str, default: dict[str, Any]) -> dict[str, Any]:
 @dataclass(frozen=True)
 class Settings:
     provider_default: str = os.getenv("GATEWAY_PROVIDER_DEFAULT", "ollama")
-    ollama_base_url: str = os.getenv("GATEWAY_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    ollama_base_url: str = os.getenv(
+        "GATEWAY_OLLAMA_BASE_URL", "http://127.0.0.1:11434"
+    )
     vllm_base_url: str = os.getenv("GATEWAY_VLLM_BASE_URL", "http://127.0.0.1:8000")
     request_timeout_s: float = _env_float("GATEWAY_REQUEST_TIMEOUT_S", 120.0)
     model_map_raw: str = os.getenv("GATEWAY_MODEL_MAP", "{}")
@@ -69,8 +71,12 @@ class Settings:
                 "max_context_tokens": 8192,
             },
         }
-        object.__setattr__(self, "model_defaults", _env_json("GATEWAY_MODEL_DEFAULTS", default_models))
-        object.__setattr__(self, "provider_caps", _env_json("GATEWAY_PROVIDER_CAPS", default_caps))
+        object.__setattr__(
+            self, "model_defaults", _env_json("GATEWAY_MODEL_DEFAULTS", default_models)
+        )
+        object.__setattr__(
+            self, "provider_caps", _env_json("GATEWAY_PROVIDER_CAPS", default_caps)
+        )
 
 
 settings = Settings()

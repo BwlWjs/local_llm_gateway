@@ -9,11 +9,20 @@ from local_llm_gateway.core.runtime import RuntimeSnapshot
 from local_llm_gateway.core.service import GatewayService
 from local_llm_gateway.facades.anthropic import AnthropicFacade
 from local_llm_gateway.facades.openai import OpenAIFacade
-from local_llm_gateway.models import CanonicalResponse, MessageRequest, OpenAIChatCompletionRequest, ProtocolName, UsageInfo
+from local_llm_gateway.models import (
+    CanonicalResponse,
+    MessageRequest,
+    OpenAIChatCompletionRequest,
+    ProtocolName,
+    UsageInfo,
+)
 from local_llm_gateway.providers.registry import get_provider_adapter
 from local_llm_gateway.router import ModelRegistry
 from local_llm_gateway.streaming import ollama_line_stream_to_sse
-from local_llm_gateway.translator import canonical_response_to_anthropic, canonical_response_to_openai
+from local_llm_gateway.translator import (
+    canonical_response_to_anthropic,
+    canonical_response_to_openai,
+)
 
 
 def _test_registry() -> ModelRegistry:

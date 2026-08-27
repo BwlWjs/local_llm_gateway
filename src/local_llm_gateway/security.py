@@ -3,7 +3,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request
 
@@ -36,6 +37,19 @@ def verify_key(key: str, key_hash: str) -> bool:
     return hmac.compare_digest(hash_key(key), key_hash)
 
 
+def is_expired(record: ApiKeyRecord, now: datetime | None = None) -> bool:
+    expires_at = record.expires_at
+    if not expires_at:
+        return False
+    try:
+        expires = datetime.fromisoformat(expires_at)
+    except ValueError:
+        return False
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=UTC)
+    return (now or datetime.now(UTC)) >= expires
+
+
 def _extract_key(request: Request) -> str | None:
     api_key = request.headers.get("x-api-key")
     if api_key:
@@ -47,7 +61,9 @@ def _extract_key(request: Request) -> str | None:
 
 
 def _unauthorized(detail: str) -> HTTPException:
-    return HTTPException(status_code=401, detail={"code": "invalid_api_key", "detail": detail})
+    return HTTPException(
+        status_code=401, detail={"code": "invalid_api_key", "detail": detail}
+    )
 
 
 def api_key_auth(request: Request) -> ApiKeyRecord:
@@ -59,15 +75,20 @@ def api_key_auth(request: Request) -> ApiKeyRecord:
         raise _unauthorized("invalid API key")
     if record.status is not ApiKeyStatus.active:
         raise _unauthorized("API key is revoked")
+    if is_expired(record):
+        raise _unauthorized("API key is expired")
     return record
 
 
 def require_scope(scope: Scope) -> Callable[..., ApiKeyRecord]:
-    def _dependency(record: ApiKeyRecord = Depends(api_key_auth)) -> ApiKeyRecord:
+    def _dependency(record: ApiKeyRecord = Depends(api_key_auth)) -> ApiKeyRecord:  # noqa: B008
         if scope.value not in record.scopes:
             raise HTTPException(
                 status_code=403,
-                detail={"code": "insufficient_scope", "detail": f"missing scope: {scope.value}"},
+                detail={
+                    "code": "insufficient_scope",
+                    "detail": f"missing scope: {scope.value}",
+                },
             )
         return record
 
@@ -79,6 +100,13 @@ def admin_auth(request: Request) -> None:
     if not token:
         return
     authorization = request.headers.get("authorization")
-    provided = authorization[7:].strip() if (authorization and authorization.lower().startswith("bearer ")) else None
+    provided = (
+        authorization[7:].strip()
+        if (authorization and authorization.lower().startswith("bearer "))
+        else None
+    )
     if provided is None or not hmac.compare_digest(provided, token):
-        raise HTTPException(status_code=401, detail={"code": "admin_unauthorized", "detail": "invalid admin token"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "admin_unauthorized", "detail": "invalid admin token"},
+        )

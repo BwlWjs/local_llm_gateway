@@ -13,4 +13,3 @@ class GatewayError(Exception):
 
     def __post_init__(self) -> None:
         super().__init__(self.detail)
-

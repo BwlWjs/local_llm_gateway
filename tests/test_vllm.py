@@ -13,7 +13,9 @@ from local_llm_gateway.streaming import openai_stream_to_sse
 
 
 def _target() -> ProviderTarget:
-    return ProviderTarget(provider="vllm", model="qwen2.5-coder:7b", base_url="http://127.0.0.1:8000")
+    return ProviderTarget(
+        provider="vllm", model="qwen2.5-coder:7b", base_url="http://127.0.0.1:8000"
+    )
 
 
 def _request() -> CanonicalRequest:

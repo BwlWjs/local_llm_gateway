@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/v1")
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _refresh(request: Request) -> None:
@@ -22,7 +22,9 @@ def _refresh(request: Request) -> None:
     state.runtime.refresh_keys(state.key_store)
 
 
-@router.post("/keys", response_model=KeyCreateResponse, dependencies=[Depends(admin_auth)])
+@router.post(
+    "/keys", response_model=KeyCreateResponse, dependencies=[Depends(admin_auth)]
+)
 def create_key(body: KeyCreateRequest, request: Request) -> KeyCreateResponse:
     key = generate_key()
     record = ApiKeyRecord(
@@ -41,7 +43,9 @@ def create_key(body: KeyCreateRequest, request: Request) -> KeyCreateResponse:
     return KeyCreateResponse(key=key, record=record)
 
 
-@router.get("/keys", response_model=list[KeyListItem], dependencies=[Depends(admin_auth)])
+@router.get(
+    "/keys", response_model=list[KeyListItem], dependencies=[Depends(admin_auth)]
+)
 def list_keys(request: Request) -> list[KeyListItem]:
     return [
         KeyListItem(
@@ -61,7 +65,10 @@ def list_keys(request: Request) -> list[KeyListItem]:
 @router.delete("/keys/{key_id}", dependencies=[Depends(admin_auth)])
 def revoke_key(key_id: str, request: Request) -> dict[str, str]:
     if not request.app.state.key_store.revoke(key_id):
-        raise HTTPException(status_code=404, detail={"code": "key_not_found", "detail": f"key not found: {key_id}"})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "key_not_found", "detail": f"key not found: {key_id}"},
+        )
     _refresh(request)
     return {"id": key_id, "status": ApiKeyStatus.revoked.value}
 
