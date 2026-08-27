@@ -5,7 +5,7 @@ from typing import Any
 
 from .models import CanonicalResponse
 from .protocols import content_to_text
-from .streaming import passthrough_stream
+from .streaming import passthrough_stream, to_anthropic_stop_reason
 
 
 def canonical_response_to_anthropic(response: CanonicalResponse) -> dict[str, Any]:
@@ -15,7 +15,7 @@ def canonical_response_to_anthropic(response: CanonicalResponse) -> dict[str, An
         "model": response.model,
         "role": response.role,
         "content": response.content,
-        "stop_reason": response.stop_reason,
+        "stop_reason": to_anthropic_stop_reason(response.stop_reason),
         "stop_sequence": response.stop_sequence,
         "usage": response.usage.model_dump(),
     }

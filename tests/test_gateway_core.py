@@ -152,3 +152,45 @@ def test_ollama_line_stream_to_sse_emits_expected_events():
     assert any(chunk.startswith(b"event: content_block_delta") for chunk in chunks)
     assert any(chunk.startswith(b"event: message_delta") for chunk in chunks)
     assert chunks[-1].startswith(b"event: message_stop")
+
+
+def test_anthropic_stop_reason_mapping():
+    from local_llm_gateway.streaming import to_anthropic_stop_reason
+
+    assert to_anthropic_stop_reason("stop") == "end_turn"
+    assert to_anthropic_stop_reason("length") == "max_tokens"
+    assert to_anthropic_stop_reason("tool_calls") == "tool_use"
+    assert to_anthropic_stop_reason("end_turn") == "end_turn"
+    assert to_anthropic_stop_reason(None) is None
+    assert to_anthropic_stop_reason("unexpected") == "end_turn"
+
+
+def test_anthropic_translator_maps_openai_stop_reason():
+    response = CanonicalResponse(
+        id="msg_test",
+        model="qwen2.5-coder:7b",
+        content=[{"type": "text", "text": "hello"}],
+        stop_reason="stop",
+        usage=UsageInfo(input_tokens=3, output_tokens=2),
+    )
+
+    anthropic = canonical_response_to_anthropic(response)
+
+    assert anthropic["stop_reason"] == "end_turn"
+
+
+def test_ollama_stream_maps_stop_to_end_turn():
+    async def _collect() -> list[bytes]:
+        async def _lines():
+            yield '{"message":{"content":"hi"},"done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}'
+
+        target = _test_registry().resolve("local-coder")
+        chunks = []
+        async for chunk in ollama_line_stream_to_sse(_lines(), target, "msg_test"):
+            chunks.append(chunk)
+        return chunks
+
+    chunks = asyncio.run(_collect())
+
+    delta = next(c for c in chunks if c.startswith(b"event: message_delta"))
+    assert b'"stop_reason":"end_turn"' in delta

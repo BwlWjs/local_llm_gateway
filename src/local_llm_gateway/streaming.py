@@ -5,6 +5,27 @@ from typing import Any
 from .models import CanonicalStreamEvent, ProviderTarget, StreamEventType, UsageInfo
 
 
+_ANTHROPIC_STOP_REASON_MAP: dict[str, str] = {
+    "stop": "end_turn",
+    "end_turn": "end_turn",
+    "length": "max_tokens",
+    "max_tokens": "max_tokens",
+    "tool_calls": "tool_use",
+    "tool_use": "tool_use",
+    "function_call": "tool_use",
+    "stop_sequence": "stop_sequence",
+    "pause_turn": "pause_turn",
+    "refusal": "refusal",
+}
+
+
+def to_anthropic_stop_reason(reason: str | None) -> str | None:
+    """Map canonical (Ollama/OpenAI-style) stop reason to Anthropic Messages vocabulary."""
+    if not reason:
+        return None
+    return _ANTHROPIC_STOP_REASON_MAP.get(reason, "end_turn")
+
+
 def encode_sse(event_type: str, data: dict[str, Any]) -> bytes:
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n".encode("utf-8")
 
@@ -113,7 +134,7 @@ async def ollama_line_stream_to_sse(
                 input_tokens=int(payload.get("prompt_eval_count") or 0),
                 output_tokens=int(payload.get("eval_count") or output_tokens),
             )
-            reason = str(payload.get("done_reason") or "end_turn")
+            reason = to_anthropic_stop_reason(str(payload.get("done_reason") or "end_turn")) or "end_turn"
             yield canonical_content_stop(0)
             yield canonical_message_delta(reason, usage)
             yield canonical_message_stop()
@@ -163,5 +184,5 @@ async def openai_stream_to_sse(
             )
 
     yield canonical_content_stop(0)
-    yield canonical_message_delta(stop_reason or "end_turn", usage)
+    yield canonical_message_delta(to_anthropic_stop_reason(stop_reason) or "end_turn", usage)
     yield canonical_message_stop()
