@@ -179,18 +179,24 @@ Gateway / Domain Layer
 
 ## 快速启动
 
+本地开发副本：
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
+pip install -e .[dev]          # 必须可编辑安装，否则 site-packages 存旧副本
 cp .env.example .env
 python -m local_llm_gateway
 ```
 
+正式运行部署在 UTM 虚拟机，由 systemd 单元 `modelrelay-gateway.service` 自启，宿主机跑 Ollama 与 Claude Code。完整跨机拓扑、凭据与运维命令见 [docs/dev-environment.md](docs/dev-environment.md)。
+
 ## 下一步
 
-1. 实现后端核心：canonical schema、runtime snapshot、router、provider capability matrix
-2. 实现协议外壳：Anthropic 和 OpenAI 并列 facade
-3. 接入 Ollama：完成 `local-coder -> qwen2.5-coder:7b` 默认链路
-4. 实现 key、Admin API、SQLite store 和控制面后端
-5. 实现本地 Web UI，再补 vLLM、benchmark 和 macOS 交付
+阶段 1–6（后端核心、协议外壳、Ollama/vLLM provider、key/Admin、UI、双向 tool_use 转换）均已实现并端到端验证，代码 HEAD `c9ce98a`。剩余工作：
+
+1. 限流、审计落盘、metrics 端点
+2. vLLM-Metal 在 Apple Silicon 上的实际接入（当前生产用 Ollama + qwen3:8b）
+3. macOS 交付（ModelRelay.app 打包、LaunchAgent、Sparkle 升级）
+
+> 运行环境与跨机拓扑（宿主机跑 Ollama/Claude Code，UTM 虚拟机跑网关）见 [docs/dev-environment.md](docs/dev-environment.md)。

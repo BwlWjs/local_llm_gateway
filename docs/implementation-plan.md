@@ -9,10 +9,10 @@
 - 已完成：源码目录重命名为 `src/local_llm_gateway`
 - 已完成：产品名统一为 `ModelRelay`
 - 已完成：文档索引、详细设计、技术实现设计、mac 交付设计
-- 已完成：后端骨架、路由、协议外壳、Ollama 链路、基础测试骨架
-- 已完成：Ubuntu 24.04 LTS Server arm64 开发虚拟机已创建并启动
-- 当前阻塞：本机缺少可用的 `git` / command line tools，无法直接完成远端提交
-- 当前决定：后续开发环境迁移到 Ubuntu 24.04 LTS Server arm64 虚拟机，编辑器使用 VS Code
+- 已完成：后端核心、路由、协议外壳（Anthropic + OpenAI facade）、Ollama + vLLM provider、流式代理、双向 tool_use 转换、key/Admin API/SQLite store、静态控制面 UI、benchmark、GitHub Actions CI
+- 已完成：开发环境迁移到 Ubuntu 24.04 LTS Server arm64 虚拟机（IP 192.168.64.5），网关由 systemd 自启；宿主机跑 Ollama 与 Claude Code。环境细节见 [dev-environment.md](dev-environment.md)
+- 当前代码 HEAD：`c9ce98a`（双向 tool_use 转换），宿主与 VM 仓库已同步到 `origin/main`
+- 待办：限流、审计落盘、metrics、vLLM-Metal 实际接入
 
 编码时以这些文档为准：
 
